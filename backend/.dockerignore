@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+db.sqlite3
+staticfiles/
+media/outputs/
+media/media_files/
+media/reports/
+media/worker_photos/
+media/faces/
+media/violations/
