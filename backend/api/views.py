@@ -160,7 +160,7 @@ def mark_face_attendance(request):
     if not photo_data:
         return Response({'error': 'Camera frame snapshot is required'}, status=400)
 
-    try:
+        try:
         encoded_data = photo_data.split(',')[1] if ',' in photo_data else photo_data
         nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -292,7 +292,7 @@ def analyze_image(request):
         if image_file.size > 15 * 1024 * 1024:
             return Response({'error': 'Image file exceeds the 15MB size limit.'}, status=400)
 
-        try:
+            try:
             file_bytes = image_file.read()
             image_file.seek(0)
             nparr = np.frombuffer(file_bytes, np.uint8)
@@ -317,7 +317,7 @@ def analyze_image(request):
         if not os.path.exists(input_path):
             input_path = os.path.join(settings.MEDIA_ROOT, 'images', 'worker_without_helmet.jpg')
 
-    try:
+        try:
         res = processor.process_image(input_path)
         if media_obj:
             media_obj.output_path = res.get('output_url')
@@ -328,7 +328,7 @@ def analyze_image(request):
             }
             media_obj.save()
         # Encode output image to base64 for frontend consumption
-    try:
+        try:
         with open(res.get('output_path'), 'rb') as f:
             img_bytes = f.read()
         img_b64 = base64.b64encode(img_bytes).decode('utf-8')
@@ -338,7 +338,7 @@ def analyze_image(request):
     return Response(res)
     except Exception as e:
         if media_obj:
-            try:
+                try:
                 media_obj.delete()
             except Exception:
                 pass
@@ -371,7 +371,7 @@ def analyze_video_frame(request):
 
     if photo_base64:
         source_name = "Live Webcam CCTV Feed"
-        try:
+            try:
             encoded_data = photo_base64.split(',')[1] if ',' in photo_base64 else photo_base64
             nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
