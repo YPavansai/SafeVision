@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://safevision-backend.onrender.com/api/:path*"
+      "destination": "https://safevision-backend-npju.onrender.com/api/:path*"
     },
     {
       "source": "/media/:path*",
-      "destination": "https://safevision-backend.onrender.com/media/:path*"
+      "destination": "https://safevision-backend-npju.onrender.com/media/:path*"
     },
     {
       "source": "/(.*)",
