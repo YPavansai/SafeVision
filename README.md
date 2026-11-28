@@ -524,8 +524,9 @@ Interested in Artificial Intelligence, Machine Learning, Computer Vision, Genera
 
 ### Connect With Me
 
-- GitHub: [YPavansai](https://github.com/YPavansai)
-- LinkedIn: [Pavan Sai](https://www.linkedin.com/in/pavan-sai-45593a332/)
+- 💻 GitHub: [YPavansai](https://github.com/YPavansai)
+- 🔗 LinkedIn: [Pavan Sai](https://www.linkedin.com/in/pavan-sai-45593a332/)
+- 🌐 Live Application: https://safe-vision-tan.vercel.app/
 
 ---
 
