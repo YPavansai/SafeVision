@@ -82,7 +82,12 @@ export default function ImageAnalysisPage() {
       }
       setAnalysisResult(res.data);
     } catch (err) {
-      const msg = err.response?.data?.error || err.message || 'Image analysis request failed';
+      const msg =
+        err.response?.data?.error ||
+        (err.code === 'ECONNABORTED' || err.message === 'Network Error'
+          ? 'Backend server is waking up or busy processing. Please wait a few seconds and click Execute YOLOv8 Detection again.'
+          : err.message) ||
+        'Image analysis request failed';
       setFileError(msg);
     } finally {
       setLoading(false);

@@ -10,14 +10,22 @@ class ArcFaceRecognizer:
     Gabor filter texture energy, geometric proportion metrics, and cosine similarity distance.
     """
     def __init__(self):
-        self.face_cascade = None
+        self.face_cascades = []
         self.eye_cascade = None
         try:
             if hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'data'):
-                cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+                cascade_files = [
+                    'haarcascade_frontalface_default.xml',
+                    'haarcascade_frontalface_alt2.xml',
+                    'haarcascade_frontalface_alt.xml',
+                ]
+                for fname in cascade_files:
+                    cpath = cv2.data.haarcascades + fname
+                    if os.path.exists(cpath):
+                        clf = cv2.CascadeClassifier(cpath)
+                        if not clf.empty():
+                            self.face_cascades.append(clf)
                 eye_path = cv2.data.haarcascades + 'haarcascade_eye.xml'
-                if os.path.exists(cascade_path):
-                    self.face_cascade = cv2.CascadeClassifier(cascade_path)
                 if os.path.exists(eye_path):
                     self.eye_cascade = cv2.CascadeClassifier(eye_path)
         except Exception as e:
@@ -69,16 +77,22 @@ class ArcFaceRecognizer:
         gray = cv2.cvtColor(enhanced, cv2.COLOR_BGR2GRAY)
 
         faces = []
-        if self.face_cascade is not None:
+        clahe_gray = clahe.apply(cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY))
+        for clf in self.face_cascades:
             try:
-                faces = self.face_cascade.detectMultiScale(
-                    gray, scaleFactor=1.1, minNeighbors=4, minSize=(40, 40)
+                faces = clf.detectMultiScale(
+                    gray, scaleFactor=1.1, minNeighbors=4, minSize=(36, 36)
                 )
                 if len(faces) == 0:
-                    clahe_gray = clahe.apply(cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY))
-                    faces = self.face_cascade.detectMultiScale(
+                    faces = clf.detectMultiScale(
                         clahe_gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30)
                     )
+                if len(faces) == 0:
+                    faces = clf.detectMultiScale(
+                        clahe_gray, scaleFactor=1.05, minNeighbors=2, minSize=(28, 28)
+                    )
+                if len(faces) > 0:
+                    break
             except Exception:
                 faces = []
 
@@ -146,11 +160,13 @@ class ArcFaceRecognizer:
 
         gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
         faces = []
-        if self.face_cascade is not None:
+        for clf in self.face_cascades:
             try:
-                faces = self.face_cascade.detectMultiScale(
+                faces = clf.detectMultiScale(
                     gray, scaleFactor=1.1, minNeighbors=4, minSize=(50, 50)
                 )
+                if len(faces) > 0:
+                    break
             except Exception:
                 faces = []
 

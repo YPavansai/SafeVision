@@ -16,6 +16,7 @@ export function resolveMediaUrl(url) {
 
 const api = axios.create({
   baseURL: API_BASE,
+  timeout: 90000,
   headers: {
     'Content-Type': 'application/json',
   },

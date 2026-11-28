@@ -50,36 +50,39 @@ export default function WebcamAttendanceModal({ isOpen, onClose, type = 'entry',
     setResult(null);
 
     let base64Photo = '';
+    const videoEl = videoRef.current;
+    const hasReadyVideo = Boolean(
+      videoEl &&
+      videoEl.srcObject &&
+      videoEl.readyState >= 2 &&
+      videoEl.videoWidth > 0 &&
+      videoEl.videoHeight > 0
+    );
 
-    if (videoRef.current && videoRef.current.srcObject) {
+    if (hasReadyVideo) {
       const canvas = canvasRef.current || document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 480;
+      canvas.width = videoEl.videoWidth || 640;
+      canvas.height = videoEl.videoHeight || 480;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoRef.current, 0, 0, 640, 480);
-      base64Photo = canvas.toDataURL('image/jpeg');
-    } else {
-      // Synthetic canvas frame generation with face features for biometric simulation
+      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+      base64Photo = canvas.toDataURL('image/jpeg', 0.9);
+    } else if (selectedWorkerId) {
+      // Synthetic biometric canvas for simulation mode when no webcam is attached
       const canvas = document.createElement('canvas');
       canvas.width = 400;
       canvas.height = 300;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, 400, 300);
-      
-      if (selectedWorkerId) {
-        // Render face matching chosen worker
-        ctx.fillStyle = '#f87171';
-        ctx.beginPath();
-        ctx.arc(200, 140, 55, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        ctx.fillStyle = '#06b6d4';
-        ctx.beginPath();
-        ctx.arc(200, 140, 55, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.fillStyle = selectedWorkerId === 'UNKNOWN_DEMO' ? '#06b6d4' : '#f87171';
+      ctx.beginPath();
+      ctx.arc(200, 140, 55, 0, Math.PI * 2);
+      ctx.fill();
       base64Photo = canvas.toDataURL('image/jpeg');
+    } else {
+      setError('Camera stream not active. Please allow webcam access or choose a Biometric Profile Target above to test attendance.');
+      setLoading(false);
+      return;
     }
 
     try {
@@ -89,7 +92,7 @@ export default function WebcamAttendanceModal({ isOpen, onClose, type = 'entry',
         simulate_worker_id: selectedWorkerId || undefined
       });
       setResult(res.data);
-      if (res.data.status !== 'Unrecognized' && onSuccess) {
+      if (res.data.status !== 'Unrecognized' && res.data.status !== 'NoFace' && onSuccess) {
         onSuccess(res.data);
       }
     } catch (err) {
@@ -228,13 +231,26 @@ export default function WebcamAttendanceModal({ isOpen, onClose, type = 'entry',
         </div>
 
         {/* Verification Status Feedback (Recognized) */}
-        {result && result.status !== 'Unrecognized' && (
+        {result && result.status !== 'Unrecognized' && result.status !== 'NoFace' && (
           <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <CheckCircle2 color="var(--emerald-primary)" size={28} />
             <div>
               <p style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--emerald-primary)' }}>{result.message}</p>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-dark-secondary)', marginTop: '2px' }}>
-                Biometric Confidence: <strong style={{ color: '#ffffff' }}>{result.match_confidence}</strong> | Spatial Quality: Optimal
+                Biometric Confidence: <strong style={{ color: '#ffffff' }}>{result.match_confidence}</strong> | Lighting: {result.quality_metrics?.lighting_status || 'Optimal'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* No Face Detected Feedback */}
+        {result && result.status === 'NoFace' && (
+          <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '14px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.35)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertCircle color="var(--amber-primary)" size={28} />
+            <div>
+              <p style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--amber-primary)' }}>{result.title || 'NO FACE DETECTED'}</p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-dark-secondary)', marginTop: '2px' }}>
+                {result.message} (Lighting: {result.quality_metrics?.lighting_status || 'Unknown'})
               </p>
             </div>
           </div>

@@ -57,10 +57,15 @@ class SafetyYOLOv8Detector:
         try:
             from ultralytics import YOLO
             import torch
+            # Limit CPU threads to prevent memory/thread thrashing on constrained containers
+            torch.set_num_threads(1)
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
             self.yolo = YOLO(self.model_path)
             self.model_classes = dict(self.yolo.names)
             self._verify_class_capabilities()
+            # Warm up model once at startup so first API request does not time out
+            dummy = np.zeros((320, 320, 3), dtype=np.uint8)
+            self.yolo(dummy, verbose=False, imgsz=320, device=self.device)
             print(f"[SafeVision YOLO Engine] Loaded model '{self.model_name}' on {self.device} with {len(self.model_classes)} classes.")
         except Exception as e:
             print(f"[SafeVision YOLO Engine] Model load warning: ({e}).")
@@ -113,13 +118,20 @@ class SafetyYOLOv8Detector:
             return image_np, [], [], []
 
         h, w = image_np.shape[:2]
+        # Downscale oversized uploads to keep CPU inference fast & within container RAM
+        max_dim = 1280
+        if max(h, w) > max_dim:
+            scale = max_dim / float(max(h, w))
+            image_np = cv2.resize(image_np, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+            h, w = image_np.shape[:2]
+
         annotated_img = image_np.copy()
         raw_detections = []
 
         if self.yolo:
             try:
                 # YOLOv8 handles RGB conversion, letterboxing, and per-class NMS internally
-                results = self.yolo(image_np, verbose=False, conf=confidence_threshold, device=self.device)[0]
+                results = self.yolo(image_np, verbose=False, conf=confidence_threshold, imgsz=480, device=self.device)[0]
                 for box in results.boxes:
                     cls_id = int(box.cls[0])
                     conf = float(box.conf[0])
