@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 // SafeVision Industrial Vite Config
 export default defineConfig({
   plugins: [react()],
+  build: {
+    chunkSizeWarningLimit: 1600,
+  },
   server: {
     port: 3000,
     strictPort: false,

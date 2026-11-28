@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, Download, FileText, CheckCircle2, Clock, Activity, Calendar } from 'lucide-react';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 
 export default function ReportsPage() {
   const [reports, setReports] = useState([]);
@@ -111,7 +111,7 @@ export default function ReportsPage() {
                     {new Date(r.generated_at).toLocaleString()}
                   </td>
                   <td style={{ padding: '14px 12px' }}>
-                    <a href={r.file_path} download target="_blank" rel="noreferrer" className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', textDecoration: 'none', display: 'inline-flex' }}>
+                    <a href={resolveMediaUrl(r.file_path)} download target="_blank" rel="noreferrer" className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', textDecoration: 'none', display: 'inline-flex' }}>
                       <Download size={14} /> Download File
                     </a>
                   </td>

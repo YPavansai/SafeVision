@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Film, Play, Scan, Image as ImageIcon, Video as VideoIcon, Download, X, Activity, Pause } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 
 export default function MediaLibraryPage() {
   const [media, setMedia] = useState({ videos: [], images: [] });
@@ -135,7 +135,7 @@ export default function MediaLibraryPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '10px' }}>
-                <a href={img.url} target="_blank" rel="noreferrer" className="btn-secondary" style={{ flex: 1, justifyContent: 'center', textDecoration: 'none', fontSize: '0.8rem' }}>
+                <a href={resolveMediaUrl(img.url)} target="_blank" rel="noreferrer" className="btn-secondary" style={{ flex: 1, justifyContent: 'center', textDecoration: 'none', fontSize: '0.8rem' }}>
                   View Image
                 </a>
                 <button onClick={() => navigate('/image-analysis')} className="btn-primary" style={{ padding: '8px 12px', fontSize: '0.8rem' }}>

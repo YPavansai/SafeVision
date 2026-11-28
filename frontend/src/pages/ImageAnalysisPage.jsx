@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Scan, Upload, Download, CheckCircle2, AlertTriangle, Image as ImageIcon, Activity, Info, ShieldAlert, AlertCircle } from 'lucide-react';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 
 export default function ImageAnalysisPage() {
   const [selectedImageName, setSelectedImageName] = useState('real_construction_worker.jpg');
   const [uploadFile, setUploadFile] = useState(null);
-  const [inputPreviewUrl, setInputPreviewUrl] = useState('/media/images/real_construction_worker.jpg');
+  const [inputPreviewUrl, setInputPreviewUrl] = useState(resolveMediaUrl('/media/images/real_construction_worker.jpg'));
   const [fileError, setFileError] = useState('');
   const [loading, setLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -32,7 +32,7 @@ export default function ImageAnalysisPage() {
     setUploadFile(null);
     setFileError('');
     setAnalysisResult(null);
-    setInputPreviewUrl(`/media/images/${name}`);
+    setInputPreviewUrl(resolveMediaUrl(`/media/images/${name}`));
   };
 
   const handleFileChange = (e) => {
@@ -187,7 +187,7 @@ export default function ImageAnalysisPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>AI Bounding Box Output Image</h3>
               <a
-                href={analysisResult.output_url}
+                href={resolveMediaUrl(analysisResult.output_url)}
                 download
                 target="_blank"
                 rel="noreferrer"
@@ -200,7 +200,7 @@ export default function ImageAnalysisPage() {
 
             <div style={{ width: '100%', height: '360px', backgroundColor: '#050811', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img
-                src={analysisResult.output_url}
+                src={resolveMediaUrl(analysisResult.output_url)}
                 alt="YOLO Output"
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               />

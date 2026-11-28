@@ -25,7 +25,10 @@ export default function Login() {
       await login(username, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Invalid admin credentials. Use admin / adminpass');
+      setError(
+        err.response?.data?.detail ||
+        (err.response ? `Login failed (HTTP ${err.response.status}).` : 'Cannot reach server. If Render just woke up, retry in a few seconds.')
+      );
     } finally {
       setLoading(false);
     }
