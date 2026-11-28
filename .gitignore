@@ -10,6 +10,7 @@ venv/
 .env
 backend/db.sqlite3
 backend/staticfiles/
+backend/logs/
 backend/media/outputs/
 backend/media/media_files/
 backend/media/reports/

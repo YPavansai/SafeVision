@@ -1,7 +1,18 @@
 import cv2
+import logging
 import numpy as np
 import os
+import threading
 from django.conf import settings
+
+logger = logging.getLogger('safevision.ai')
+
+_MODEL_LOAD_LOCK = threading.Lock()
+_SHARED_MODELS = {}
+_MAX_CONCURRENT = max(1, int(os.environ.get('AI_MAX_CONCURRENT_INFERENCE', 2)))
+_INFERENCE_TIMEOUT = max(5, int(os.environ.get('AI_INFERENCE_TIMEOUT', 30)))
+_INFERENCE_SEMAPHORE = threading.BoundedSemaphore(value=_MAX_CONCURRENT)
+
 
 class SafetyYOLOv8Detector:
     """
@@ -43,6 +54,9 @@ class SafetyYOLOv8Detector:
         self.device = 'cpu'
         self.model_classes = {}
         self.class_map = {}
+        self.init_error = None
+        self.imgsz = int(os.environ.get('AI_IMAGE_SIZE', 480))
+        self.max_dim = int(os.environ.get('AI_MAX_IMAGE_DIM', 1280))
         self.supported_capabilities = {
             'worker': False,
             'helmet': False,
@@ -54,21 +68,45 @@ class SafetyYOLOv8Detector:
             'smoke': False,
         }
 
-        try:
-            from ultralytics import YOLO
-            import torch
-            # Limit CPU threads to prevent memory/thread thrashing on constrained containers
-            torch.set_num_threads(1)
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            self.yolo = YOLO(self.model_path)
-            self.model_classes = dict(self.yolo.names)
-            self._verify_class_capabilities()
-            # Warm up model once at startup so first API request does not time out
-            dummy = np.zeros((320, 320, 3), dtype=np.uint8)
-            self.yolo(dummy, verbose=False, imgsz=320, device=self.device)
-            print(f"[SafeVision YOLO Engine] Loaded model '{self.model_name}' on {self.device} with {len(self.model_classes)} classes.")
-        except Exception as e:
-            print(f"[SafeVision YOLO Engine] Model load warning: ({e}).")
+        self._load_model_singleton()
+
+    def _load_model_singleton(self):
+        """Loads YOLOv8 weights once per process (thread-safe) to prevent duplicate RAM/VRAM allocation."""
+        with _MODEL_LOAD_LOCK:
+            if self.model_path in _SHARED_MODELS:
+                cached = _SHARED_MODELS[self.model_path]
+                self.yolo = cached['yolo']
+                self.device = cached['device']
+                self.model_classes = dict(cached['classes'])
+                self._verify_class_capabilities()
+                return
+
+            try:
+                from ultralytics import YOLO
+                import torch
+                torch.set_num_threads(max(1, int(os.environ.get('TORCH_NUM_THREADS', 2))))
+                self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                yolo_instance = YOLO(self.model_path)
+                classes = dict(yolo_instance.names)
+                dummy = np.zeros((320, 320, 3), dtype=np.uint8)
+                with torch.no_grad():
+                    yolo_instance(dummy, verbose=False, imgsz=320, device=self.device)
+
+                _SHARED_MODELS[self.model_path] = {
+                    'yolo': yolo_instance,
+                    'device': self.device,
+                    'classes': classes,
+                }
+                self.yolo = yolo_instance
+                self.model_classes = classes
+                self._verify_class_capabilities()
+                logger.info(
+                    "Loaded YOLO model '%s' on %s (%d classes)",
+                    self.model_name, self.device, len(self.model_classes)
+                )
+            except Exception as exc:
+                self.init_error = str(exc)
+                logger.error("YOLO model initialization failed for '%s': %s", self.model_path, exc)
 
     def _verify_class_capabilities(self):
         """Inspects model class names and maps them to safety domains."""
@@ -118,47 +156,67 @@ class SafetyYOLOv8Detector:
             return image_np, [], [], []
 
         h, w = image_np.shape[:2]
-        # Downscale oversized uploads to keep CPU inference fast & within container RAM
-        max_dim = 1280
-        if max(h, w) > max_dim:
-            scale = max_dim / float(max(h, w))
+        # Downscale oversized uploads to protect 16GB RAM / 2GB MX550 VRAM & CPU containers
+        if max(h, w) > self.max_dim:
+            scale = self.max_dim / float(max(h, w))
             image_np = cv2.resize(image_np, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
             h, w = image_np.shape[:2]
 
         annotated_img = image_np.copy()
         raw_detections = []
 
-        if self.yolo:
+        if self.yolo is None:
+            raise RuntimeError(self.init_error or "YOLOv8 model is not initialized.")
+
+        acquired = _INFERENCE_SEMAPHORE.acquire(timeout=_INFERENCE_TIMEOUT)
+        if not acquired:
+            raise TimeoutError("AI inference queue is busy. Please retry shortly.")
+
+        try:
+            import torch
+            with torch.no_grad():
+                results = self.yolo(
+                    image_np,
+                    verbose=False,
+                    conf=confidence_threshold,
+                    imgsz=self.imgsz,
+                    device=self.device,
+                )[0]
+            for box in results.boxes:
+                cls_id = int(box.cls[0])
+                conf = float(box.conf[0])
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+                # Boundary clip
+                x1 = max(0, min(w - 1, x1))
+                y1 = max(0, min(h - 1, y1))
+                x2 = max(0, min(w - 1, x2))
+                y2 = max(0, min(h - 1, y2))
+                if x2 <= x1 or y2 <= y1:
+                    continue
+
+                if cls_id in self.class_map:
+                    label = self.class_map[cls_id]
+                else:
+                    label = results.names[cls_id].capitalize()
+
+                raw_detections.append({
+                    'cls_id': cls_id,
+                    'label': label,
+                    'confidence': round(conf * 100, 1),
+                    'box': [x1, y1, x2, y2]
+                })
+        except Exception as ex:
+            logger.error("YOLO inference error: %s", ex)
+            raise
+        finally:
             try:
-                # YOLOv8 handles RGB conversion, letterboxing, and per-class NMS internally
-                results = self.yolo(image_np, verbose=False, conf=confidence_threshold, imgsz=480, device=self.device)[0]
-                for box in results.boxes:
-                    cls_id = int(box.cls[0])
-                    conf = float(box.conf[0])
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-                    # Boundary clip
-                    x1 = max(0, min(w - 1, x1))
-                    y1 = max(0, min(h - 1, y1))
-                    x2 = max(0, min(w - 1, x2))
-                    y2 = max(0, min(h - 1, y2))
-                    if x2 <= x1 or y2 <= y1:
-                        continue
-
-                    # Only process mapped safety domain classes
-                    if cls_id in self.class_map:
-                        label = self.class_map[cls_id]
-                    else:
-                        label = results.names[cls_id].capitalize()
-
-                    raw_detections.append({
-                        'cls_id': cls_id,
-                        'label': label,
-                        'confidence': round(conf * 100, 1),
-                        'box': [x1, y1, x2, y2]
-                    })
-            except Exception as ex:
-                print(f"[SafeVision YOLO] Inference exception: {ex}")
+                import torch
+                if self.device == 'cuda' and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            _INFERENCE_SEMAPHORE.release()
 
         # Separate detections into categories
         workers = [d for d in raw_detections if d['label'] == 'Worker']

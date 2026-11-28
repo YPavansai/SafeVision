@@ -15,6 +15,9 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 
 from .models import Worker, WorkerFace, Attendance, Shift, Violation, MediaFile, Notification, SystemReport, AISystemConfig
+import logging
+logger = logging.getLogger('safevision.views')
+
 from .serializers import (
     UserSerializer, WorkerSerializer, WorkerFaceSerializer,
     AttendanceSerializer, ShiftSerializer, ViolationSerializer,
@@ -324,7 +327,15 @@ def analyze_image(request):
                 'violations_count': len(res.get('violations', []))
             }
             media_obj.save()
-        return Response(res)
+        # Encode output image to base64 for frontend consumption
+    try:
+        with open(res.get('output_path'), 'rb') as f:
+            img_bytes = f.read()
+        img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+        res['output_image_base64'] = f"data:image/jpeg;base64,{img_b64}"
+    except Exception as e:
+        logger.error('Failed to encode output image to base64: %s', e)
+    return Response(res)
     except Exception as e:
         if media_obj:
             try:
