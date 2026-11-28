@@ -318,31 +318,31 @@ def analyze_image(request):
             input_path = os.path.join(settings.MEDIA_ROOT, 'images', 'worker_without_helmet.jpg')
 
         try:
-        res = processor.process_image(input_path)
-        if media_obj:
-            media_obj.output_path = res.get('output_url')
-            media_obj.detection_summary = {
-                'total_objects': res.get('total_objects'),
-                'safety_score': res.get('safety_score'),
-                'violations_count': len(res.get('violations', []))
-            }
-            media_obj.save()
-        # Encode output image to base64 for frontend consumption
-        try:
-        with open(res.get('output_path'), 'rb') as f:
-            img_bytes = f.read()
-        img_b64 = base64.b64encode(img_bytes).decode('utf-8')
-        res['output_image_base64'] = f"data:image/jpeg;base64,{img_b64}"
-    except Exception as e:
-        logger.error('Failed to encode output image to base64: %s', e)
-    return Response(res)
-    except Exception as e:
-        if media_obj:
+            res = processor.process_image(input_path)
+            if media_obj:
+                media_obj.output_path = res.get('output_url')
+                media_obj.detection_summary = {
+                    'total_objects': res.get('total_objects'),
+                    'safety_score': res.get('safety_score'),
+                    'violations_count': len(res.get('violations', []))
+                }
+                media_obj.save()
+            # Encode output image to base64 for frontend consumption
+            try:
+                with open(res.get('output_path'), 'rb') as f:
+                    img_bytes = f.read()
+                img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+                res['output_image_base64'] = f"data:image/jpeg;base64,{img_b64}"
+            except Exception as e:
+                logger.error('Failed to encode output image to base64: %s', e)
+            return Response(res)
+        except Exception as e:
+            if media_obj:
                 try:
-                media_obj.delete()
-            except Exception:
-                pass
-        return Response({'error': f"Inference pipeline error: {str(e)}"}, status=500)
+                    media_obj.delete()
+                except Exception:
+                    pass
+            return Response({'error': f"Inference pipeline error: {str(e)}"}, status=500)
 
 
 # --- LIVE MONITORING & MEDIA API ---
