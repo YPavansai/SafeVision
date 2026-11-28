@@ -160,18 +160,7 @@ def mark_face_attendance(request):
     if not photo_data:
         return Response({'error': 'Camera frame snapshot is required'}, status=400)
 
-        try:
-        encoded_data = photo_data.split(',')[1] if ',' in photo_data else photo_data
-        nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is None:
-            return Response({'error': 'Invalid camera frame snapshot data'}, status=400)
-
-        # Real-world Quality Feedback
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        brightness = float(np.mean(gray))
-        lighting_status = 'Optimal' if 60 <= brightness <= 210 else ('Low Light' if brightness < 60 else 'Overexposed')
-        
+    try: 
         face_box, embedding = face_engine.extract_embedding(img)
         workers = list(Worker.objects.filter(is_active=True))
 
